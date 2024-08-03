@@ -44,11 +44,8 @@ def scrape_linkedin_profile(profile_url, email, password):
     driver = webdriver.Chrome()
 
     # Log into LinkedIn
-    actions.login(driver, email, password)
+    actions.login(driver, email, password, timeout=30)
     print("Logged in successfully")
-
-    # Pause to ensure the login process completes and pass captcha if exists
-    time.sleep(5)
 
     # Navigate to the LinkedIn profile URL
     driver.get(profile_url)
