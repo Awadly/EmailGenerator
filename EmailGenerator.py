@@ -1,6 +1,9 @@
 from LinkedIn import scrape_linkedin_profile
 import streamlit as st
 from openai import OpenAI
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 
 client = OpenAI(
@@ -53,6 +56,29 @@ def generate_email(profile_data, email_tone, num_words, email_context, feedback=
         </rules> """
     return submit_prompt(prompt, system_prompt)
 
+def send_email(recipient_email, subject, body):
+    sender_email = st.secrets["sender_email"]
+    sender_password = st.secrets["sender_password"]
+
+    # Create a multipart message and set headers
+    message = MIMEMultipart()
+    message["From"] = sender_email
+    message["To"] = recipient_email
+    message["Subject"] = subject
+
+    # Add body to email
+    message.attach(MIMEText(body, "plain"))
+
+    # Send the email
+    try:
+        with smtplib.SMTP("smtp.gmail.com", 587) as server:
+            server.starttls()
+            server.login(sender_email, sender_password)
+            server.sendmail(sender_email, recipient_email, message.as_string())
+        st.success("Email sent successfully!")
+    except Exception as e:
+        st.error(f"Error sending email: {e}")
+
 if __name__ == "__main__":
     
     # Title of the webpage
@@ -104,3 +130,13 @@ if __name__ == "__main__":
             regenerated_email = generate_email(profile_data, email_tone, num_words, email_context, feedback)
             st.session_state.generated_email = return_goodFormat(list_to_string(regenerated_email))
             st.experimental_rerun()
+    recipient_email = st.text_input("Enter recipient email address:")
+
+    # Button to send the email
+    if st.button("Send Email"):
+        if recipient_email and 'generated_email' in st.session_state:
+            subject = "Your Subject Here"
+            body = st.session_state.generated_email
+            send_email(recipient_email, subject, body)
+        else:
+            st.error("Please enter a recipient email address and generate an email first.")
