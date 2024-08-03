@@ -1,11 +1,14 @@
 from LinkedIn import scrape_linkedin_profile
-import anthropic
 import streamlit as st
-import requests
+from openai import OpenAI
 
-client = anthropic.Anthropic(
+
+client = OpenAI(
+    # This is the default and can be omitted
     api_key=st.secrets["api_key"],
 )
+
+
 def list_to_string(my_list, separator=", "):
     return separator.join(map(str, my_list))
 
@@ -20,14 +23,16 @@ def return_goodFormat(text_block):
 
 
 def submit_prompt(prompt, system_prompt):
-    message = client.messages.create(
-                model="claude-3-5-sonnet-20240620",
-                system=system_prompt,
-                max_tokens=200,
-                messages=[
-                {"role": "user", "content": prompt}
-                ])
-    return message.content
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt}
+        ],
+        stop=None,
+        temperature=0,
+    )
+    return response.choices[0].message.content
 
 def generate_email(profile_data, email_tone, num_words, email_context, feedback=""):
     prompt = "ok"
@@ -83,7 +88,7 @@ if __name__ == "__main__":
         "about": about
         }
         generated_email = generate_email(profile_data, email_tone, num_words, email_context)
-        st.session_state.generated_email = return_goodFormat(list_to_string(generated_email))
+        st.session_state.generated_email = generated_email
 
     # Display generated email
     if 'generated_email' in st.session_state:
