@@ -4,26 +4,13 @@ from openai import OpenAI
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-
+import fitz
+from docx import Document
 
 client = OpenAI(
     # This is the default and can be omitted
     api_key=st.secrets["api_key"],
 )
-
-
-def list_to_string(my_list, separator=", "):
-    return separator.join(map(str, my_list))
-
-def return_goodFormat(text_block):
-    # Strip the 'TextBlock(text="' prefix and the trailing part
-    text = text_block[len('TextBlock(text="'):-len('",type="text")')]
-
-    # Replace the escaped newline characters with actual newlines
-    formatted_text = text.replace('\\n\\n', '\n\n').replace('\\n', '\n')
-
-    return formatted_text
-
 
 def submit_prompt(prompt, system_prompt):
     response = client.chat.completions.create(
@@ -56,6 +43,20 @@ def generate_email(profile_data, email_tone, num_words, email_context, feedback=
         </rules> """
     return submit_prompt(prompt, system_prompt)
 
+def generate_manager_email(profile_data):
+    prompt = "ok"
+    system_prompt = f"""
+      When the user enters "ok" RUN the following prompt:
+        <instruction>
+        You are an Email Generator, your only goal is to formulate a clear email to a manager that will be interviewing a potenital candidate. The email must include a summary of the candidate's profile. The email's subject must be provided based on the following attributes:
+        Candidate Information: provided a scraped linkedin profile as a json format of the candidate : {profile_data}. The email should use the json object to summarize the candidate's application points of strength and weaknesses
+        </instruction>
+        <rules>
+        Rule 1: Your output must be an Email and an Email ONLY!
+        Rule 2: Do not engage with the user with any sort of conversation, just output the email.
+        </rules> """
+    return submit_prompt(prompt, system_prompt)
+
 def send_email(recipient_email, subject, body):
     sender_email = st.secrets["sender_email"]
     sender_password = st.secrets["sender_password"]
@@ -79,10 +80,34 @@ def send_email(recipient_email, subject, body):
     except Exception as e:
         st.error(f"Error sending email: {e}")
 
+def extract_text_from_pdf(pdf_file):
+    pdf_text = ""
+    with fitz.open(stream=pdf_file.read(), filetype="pdf") as doc:
+        for page in doc:
+            pdf_text += page.get_text()
+    return pdf_text
+
+def extract_text_from_docx(docx_file):
+    doc = docx.Document(docx_file)
+    doc_text = "\n".join([para.text for para in doc.paragraphs])
+    return doc_text
 if __name__ == "__main__":
     
     # Title of the webpage
     st.title("Email Generator")
+    
+    # File uploader for resume
+    resume_file = st.file_uploader("Upload Resume", type=["pdf", "doc", "docx"])
+
+    resume_text = ""
+
+    if resume_file is not None:
+        if resume_file.type == "application/pdf":
+            resume_text = extract_text_from_pdf(resume_file)
+        elif resume_file.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+            resume_text = extract_text_from_docx(resume_file)
+
+        st.write(resume_text)
 
     # Text input for LinkedIn URL   
     linkedin_url = st.text_input("Enter LinkedIn URL:")
@@ -128,7 +153,7 @@ if __name__ == "__main__":
         # Button to regenerate email based on feedback
         if st.button("Regenerate Email"):
             regenerated_email = generate_email(profile_data, email_tone, num_words, email_context, feedback)
-            st.session_state.generated_email = return_goodFormat(list_to_string(regenerated_email))
+            st.session_state.generated_email = regenerated_email
             st.experimental_rerun()
     recipient_email = st.text_input("Enter recipient email address:")
 
@@ -140,3 +165,18 @@ if __name__ == "__main__":
             send_email(recipient_email, subject, body)
         else:
             st.error("Please enter a recipient email address and generate an email first.")
+
+    if st.button("Generate Manager's Email"):
+        if linkedin_url:
+            name, bio, about = scrape_linkedin_profile(linkedin_url, email, password)
+        profile_data = {
+        "name": name,
+        "bio": bio,
+        "about": about
+        }
+        generated_manager_email = generate_manager_email(profile_data)
+        st.session_state.manager_email = generated_manager_email
+        if 'manager_email' in st.session_state:
+                st.subheader("Generated Manager's Email:")
+                st.write(st.session_state.manager_email)
+    manager_email = st.text_input("Enter manager's email address:")
