@@ -84,11 +84,11 @@ def extract_text_from_pdf(pdf_file):
     pdf_text = ""
     with fitz.open(stream=pdf_file.read(), filetype="pdf") as doc:
         for page in doc:
-            pdf_text += page.get_text()
+            pdf_text += page.get_text("text") + "\n"
     return pdf_text
 
 def extract_text_from_docx(docx_file):
-    doc = docx.Document(docx_file)
+    doc = Document(docx_file)
     doc_text = "\n".join([para.text for para in doc.paragraphs])
     return doc_text
 if __name__ == "__main__":
